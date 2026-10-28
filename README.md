@@ -1,2 +1,5 @@
-# devops-pages-lab
-DevOps Assignment 7 - GitHub Pages with Auto Activity Log
+# Hi, I'm Siyu.
+
+## Recent activity
+<!--START_SECTION:activity-->
+<!--END_SECTION:activity-->
