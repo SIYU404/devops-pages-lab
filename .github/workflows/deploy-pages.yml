@@ -1,0 +1,85 @@
+name: Gated Deploy to Pages
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# 設定 GitHub Pages 部署所需的權限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 確保同一時間只有一個部署在進行
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # ==========================================
+  # 階段 1：建置網站 (Build Job)
+  # ==========================================
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build with Jekyll
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./
+          destination: ./_site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./_site
+
+  # ==========================================
+  # 階段 2：門禁驗證 (Validate Job - Gate)
+  # ==========================================
+  validate:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate README activity markers
+        run: |
+          echo "🔍 正在檢查 README.md 關鍵標記..."
+          if grep -q "<!--START_SECTION:activity-->" README.md && grep -q "<!--END_SECTION:activity-->" README.md; then
+            echo "✅ 門禁檢查通過：README 活動標記完整存在！"
+          else
+            echo "❌ 門禁檢查失敗：README 活動標記遺失或損壞，發布即刻阻斷！"
+            exit 1
+          fi
+
+      - name: Validate Index file presence
+        run: |
+          echo "🔍 正在檢查首頁來源檔案..."
+          if [ -f "index.md" ] || [ -f "index.html" ]; then
+            echo "✅ 門禁檢查通過：首頁來源檔案確認存在！"
+          else
+            echo "❌ 門禁檢查失敗：找不到 index 檔案！"
+            exit 1
+          fi
+
+  # ==========================================
+  # 階段 3：正式發布 (Deploy Job - 僅在驗證通過時執行)
+  # ==========================================
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: [build, validate]
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
